@@ -2,7 +2,6 @@
 
 import argparse
 
-from lib.inverted_index import InvertedIndex
 from lib.keyword_search import search_command
 
 
