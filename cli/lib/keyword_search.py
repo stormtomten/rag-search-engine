@@ -1,8 +1,9 @@
+import math
 import os
 import pickle
 import string
-from re import I
-from typing import Any, Dict, List, Set
+from collections import defaultdict
+from typing import Any, Counter, Dict, List, Set
 
 from nltk.stem import PorterStemmer
 
@@ -11,24 +12,34 @@ from .search_utils import CACHE_DIR, DEFAULT_SEARCH_LIMIT, load_movies, load_sto
 
 class InvertedIndex:
     def __init__(self) -> None:
-        self.index: Dict[str, Set[int]] = {}
+        self.index: Dict[str, Set[int]] = defaultdict(set)
         self.docmap: Dict[int, Any] = {}
         self.index_path = os.path.join(CACHE_DIR, "index.pkl")
         self.docmap_path = os.path.join(CACHE_DIR, "docmap.pkl")
+        self.term_frequencies: Dict[int, Counter] = defaultdict(Counter)
+        self.term_path = os.path.join(CACHE_DIR, "term_frequencies.pkt")
 
     def __add_document(self, doc_id: int, text: str) -> None:
-        tokenized_text = tokenize_text(text)
+        tokens = tokenize_text(text)
 
-        for token in tokenized_text:
-            if token not in self.index:
-                self.index[token] = set()
+        for token in set(tokens):
             self.index[token].add(doc_id)
+
+        self.term_frequencies[doc_id].update(tokens)
 
     def get_documents(self, term: str) -> List[int]:
         term = term.lower()
         doc_ids = sorted(self.index.get(term, set()))
 
         return doc_ids
+
+    def get_tf(self, doc_id: int, term: str) -> int:
+        tokens = tokenize_text(term)
+
+        if len(tokens) != 1:
+            raise Exception("more than one token in term")
+
+        return self.term_frequencies[doc_id].get(tokens[0], 0)
 
     def build(self) -> None:
         movies = load_movies()
@@ -47,6 +58,9 @@ class InvertedIndex:
         with open(self.docmap_path, "wb") as f:
             pickle.dump(self.docmap, f)
 
+        with open(self.term_path, "wb") as f:
+            pickle.dump(self.term_frequencies, f)
+
     def load(self):
         try:
             with open(self.index_path, "rb") as f:
@@ -59,6 +73,12 @@ class InvertedIndex:
                 self.docmap = pickle.load(f)
         except FileNotFoundError:
             print("docmap not found!")
+
+        try:
+            with open(self.term_path, "rb") as f:
+                self.term_frequencies = pickle.load(f)
+        except FileNotFoundError:
+            print("term frequencies not found!")
 
 
 def search_command(query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> list[dict]:
@@ -121,3 +141,37 @@ def stem_tokens(tokens: list[str]) -> list[str]:
         stemmed.append(stemmer.stem(token))
 
     return stemmed
+
+
+def tf_search(doc_id: int, term: str) -> int:
+    movies = InvertedIndex()
+    movies.load()
+
+    return movies.get_tf(doc_id, term)
+
+
+def idf_lookup(term: str) -> float:
+    movies = InvertedIndex()
+    movies.load()
+
+    tokens = tokenize_text(term)
+
+    return math.log(
+        (len(movies.docmap) + 1) / (len(movies.get_documents(tokens[0])) + 1)
+    )
+
+
+def tfidf_lookup(doc_id: int, term: str) -> float:
+    movies = InvertedIndex()
+    movies.load()
+
+    tf = tf_search(doc_id, term)
+    idf = idf_lookup(term)
+
+    return tf * idf
+
+
+def build() -> None:
+    index = InvertedIndex()
+    index.build()
+    index.save()
