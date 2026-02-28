@@ -1,5 +1,6 @@
 import os
 from typing import Any, Dict, List
+from urllib.parse import quote_from_bytes
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -47,6 +48,32 @@ class SemanticSearch:
                 return self.embeddings
         return self.build_embeddings(documents)
 
+    def search(self, query, limit) -> List[Any]:
+        if len(self.embeddings) == 0:
+            raise ValueError(
+                "No embeddings loaded. Call `load_or_create_embeddings` first."
+            )
+        embedded_query = self.generate_embeding(query)
+
+        similarities = []
+        for idx, embedding in enumerate(self.embeddings):
+            score = cosine_similarity(embedded_query, embedding)
+            similarities.append((score, self.documents[idx]))
+
+        similarities.sort(key=lambda x: x[0], reverse=True)
+
+        result = []
+        for idx in range(limit):
+            score, doc = similarities[idx]
+            result.append(
+                {
+                    "score": score,
+                    "title": doc["title"],
+                    "description": doc["description"],
+                }
+            )
+        return result
+
 
 def verify_model() -> None:
     model = SemanticSearch()
@@ -86,3 +113,14 @@ def embed_query_text(query):
     print(f"Query: {query}")
     print(f"First 5 dimensions: {embedding[:5]}")
     print(f"Shape: {embedding.shape}")
+
+
+def cosine_similarity(vec1, vec2):
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)

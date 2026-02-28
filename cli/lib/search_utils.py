@@ -21,3 +21,9 @@ def load_movies() -> list[dict]:
 def load_stopwords() -> list[str]:
     with open(STOPWORD_PATH, "r") as f:
         return f.read().splitlines()
+
+
+def truncate_text(text: str, max_length: int = 100) -> str:
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rsplit(" ", 1)[0] + "..."
