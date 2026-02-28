@@ -2,6 +2,8 @@ import json
 import os
 
 DEFAULT_SEARCH_LIMIT = 5
+DEFAULT_CHUNK_SIZE = 200
+DEFAULT_OVERLAP_LENGTH = 0
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATA_PATH = os.path.join(PROJECT_ROOT, "data", "movies.json")
@@ -21,3 +23,9 @@ def load_movies() -> list[dict]:
 def load_stopwords() -> list[str]:
     with open(STOPWORD_PATH, "r") as f:
         return f.read().splitlines()
+
+
+def truncate_text(text: str, max_length: int = 100) -> str:
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rsplit(" ", 1)[0] + "..."

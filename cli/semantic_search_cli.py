@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-
 import argparse
 
-from lib.semantic_search import embed_text, verify_embeddings, verify_model
+from lib.search_utils import (DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP_LENGTH,
+                              DEFAULT_SEARCH_LIMIT, load_movies, truncate_text)
+from lib.semantic_search import (SemanticSearch, embed_query_text, embed_text,
+                                 verify_embeddings, verify_model)
 
 
 def main():
@@ -16,18 +18,89 @@ def main():
     embed_parser = subparsers.add_parser("embed_text", help="Embed Text")
     embed_parser.add_argument("text", type=str, help="Text to Embed")
 
+    embed_query = subparsers.add_parser("embed_query", help="Embed Query")
+    embed_query.add_argument("query", type=str, help="Query to Embed")
+
+    search = subparsers.add_parser("search", help="Search")
+    search.add_argument("query", type=str, help="Search string")
+    search.add_argument(
+        "--limit",
+        type=int,
+        nargs="?",
+        default=DEFAULT_SEARCH_LIMIT,
+        help="Limit query results",
+    )
+
+    chunk = subparsers.add_parser("chunk", help="Chunk Text")
+    chunk.add_argument("text", type=str, help="The text to chunk")
+    chunk.add_argument(
+        "--chunk-size",
+        type=int,
+        nargs="?",
+        default=DEFAULT_CHUNK_SIZE,
+        help="Set chunk size",
+    )
+    chunk.add_argument(
+        "--overlap",
+        type=int,
+        nargs="?",
+        default=DEFAULT_OVERLAP_LENGTH,
+        help="Set overlap length",
+    )
+
     args = parser.parse_args()
     match args.command:
+        case "search":
+            model = SemanticSearch()
+            movies = load_movies()
+            model.load_or_create_embeddings(movies)
+            results = model.search(args.query, args.limit)
+            for idx, result in enumerate(results):
+                print(
+                    f"{idx + 1}. {result['title']} (score: {result['score']:.4f})\n   {truncate_text(result['description'])}\n"
+                )
+        case "chunk":
+            chunks = chunk_text(args.text, args.chunk_size, args.overlap)
+            print(
+                f"Chunking {len(args.text)} characters, with {args.overlap} in overlap"
+            )
+            for idx, chunk in enumerate(chunks):
+                print(f"{idx + 1}. {chunk}")
+
         case "verify":
             verify_model()
 
         case "embed_text":
             embed_text(args.text)
+
         case "verify_embeddings":
             verify_embeddings()
 
+        case "embed_query":
+            embed_query_text(args.query)
+
         case _:
             parser.print_help()
+
+
+def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be less than chuck-size")
+    words = text.split()
+    if not words:
+        return []
+    chunks = []
+    start = 0
+
+    while start < len(words):
+        remaining = len(words) - start
+        if remaining <= overlap:
+            break
+        chunk = " ".join(words[start : start + chunk_size])
+        chunks.append(chunk)
+        start += chunk_size - overlap
+
+    return chunks
 
 
 if __name__ == "__main__":
