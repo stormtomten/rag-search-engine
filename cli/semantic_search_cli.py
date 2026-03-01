@@ -3,6 +3,7 @@ import argparse
 
 from lib.search_utils import (
     DEFAULT_CHUNK_SIZE,
+    DEFAULT_OVERLAP_LENGTH,
     DEFAULT_SEARCH_LIMIT,
     load_movies,
     truncate_text,
@@ -14,7 +15,6 @@ from lib.semantic_search import (
     verify_embeddings,
     verify_model,
 )
-from sklearn.externals.array_api_compat.torch import chunk
 
 
 def main():
@@ -50,6 +50,13 @@ def main():
         default=DEFAULT_CHUNK_SIZE,
         help="Set chunk size",
     )
+    chunk.add_argument(
+        "--overlap",
+        type=int,
+        nargs="?",
+        default=DEFAULT_OVERLAP_LENGTH,
+        help="Set overlap length",
+    )
 
     args = parser.parse_args()
     match args.command:
@@ -63,10 +70,12 @@ def main():
                     f"{idx + 1}. {result['title']} (score: {result['score']:.4f})\n   {truncate_text(result['description'])}\n"
                 )
         case "chunk":
-            chunks = chunk_text(args.text, args.chunk_size)
-            print(f"Chunking {len(args.text)} characters")
+            chunks = chunk_text(args.text, args.chunk_size, args.overlap)
+            print(
+                f"Chunking {len(args.text)} characters, with {args.overlap} in overlap"
+            )
             for idx, chunk in enumerate(chunks):
-                print(f"{idx +1}. {chunk}")
+                print(f"{idx + 1}. {chunk}")
 
         case "verify":
             verify_model()
@@ -84,11 +93,24 @@ def main():
             parser.print_help()
 
 
-def chunk_text(text: str, chunk_size: int) -> list[str]:
+def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be less than chuck-size")
     words = text.split()
-    return [
-        " ".join(words[i : i + chunk_size]) for i in range(0, len(words), chunk_size)
-    ]
+    if not words:
+        return []
+    chunks = []
+    start = 0
+
+    while start < len(words):
+        remaining = len(words) - start
+        if remaining <= overlap:
+            break
+        chunk = " ".join(words[start : start + chunk_size])
+        chunks.append(chunk)
+        start += chunk_size - overlap
+
+    return chunks
 
 
 if __name__ == "__main__":
