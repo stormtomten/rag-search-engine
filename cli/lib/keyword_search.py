@@ -3,8 +3,7 @@ import os
 import pickle
 import string
 from collections import defaultdict
-from re import L
-from typing import Any, Counter, Dict, List, Set, Tuple
+from typing import Any, Counter, Dict, List, Set
 
 from nltk.stem import PorterStemmer
 
