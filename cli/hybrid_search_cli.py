@@ -40,6 +40,19 @@ def main() -> None:
         help="Limit query results",
     )
 
+    rff_search.add_argument(
+        "--enhance",
+        type=str,
+        choices=["spell", "rewrite", "expand"],
+        help="Query enhancement method",
+    )
+
+    rff_search.add_argument(
+        "--rerank-method",
+        type=str,
+        choices=["individual", "batch"],
+        help="Resuls reranking method",
+    )
 
     args = parser.parse_args()
 
@@ -50,9 +63,9 @@ def main() -> None:
                 print(f"* {score:.4f}")
 
         case "weighted-search":
-            results = weighted_search_command(query=args.query, alpha=args.alpha, limit=args.limit)
+            result = weighted_search_command(query=args.query, alpha=args.alpha, limit=args.limit)
 
-            for i, res in enumerate(results["results"], 1):
+            for i, res in enumerate(result["results"], 1):
                 print(f"{i}. {res['title']}")
                 print(f"   Hybrid Score: {res.get('score', 0):.3f}")
                 metadata = res.get("metadata", {})
@@ -64,15 +77,31 @@ def main() -> None:
                 print()
 
         case "rrf-search":
-            results = rff_search_command(query=args.query, k=args.k, limit=args.limit)
+            result = rff_search_command(query=args.query, k=args.k,enhance=args.enhance,rerank=args.rerank_method, limit=args.limit)
 
-            for i, res in enumerate(results["results"], 1):
+            if result["enhanced_query"]:
+                print(
+                    f"Enhanced query ({result['enhance_method']}): '{result['original_query']}' -> '{result['enhanced_query']}'\n"
+                )
+            if result["rerank_method"]:
+                print(
+                        f"Re-ranking top {len(result["results"])} results using {result["rerank_method"]} method"
+                        )
+
+            print(
+                f"Reciprocal Rank Fusion Results for '{result['query']}' (k={result['k']}):"
+            )
+            for i, res in enumerate(result["results"], 1):
                 print(f"{i}. {res['title']}")
+                if res.get('individual_score'):
+                    print(f"   Re-rank Score: {res.get('individual_score', 0):.3f}")
+                if res.get('batch_rank'):
+                    print(f"   Re-rank Score: {res.get('batch_rank', 0):.3f}")
                 print(f"   RFF Score: {res.get('score', 0):.3f}")
                 metadata = res.get("metadata", {})
-                if "bm25_score" in metadata and "semantic_score" in metadata:
+                if "bm25_rank" in metadata and "semantic_rank" in metadata:
                     print(
-                        f"   BM25 Rank: {metadata['bm25_rank']:.3f}, Semantic Rank: {metadata['semantic_rank']:.3f}"
+                        f"   BM25 Rank: {metadata.get('bm25_rank', 0)}, Semantic Rank: {metadata.get('semantic_rank', 0)}"
                     )
                 print(f"   {res['document'][:100]}...")
                 print()

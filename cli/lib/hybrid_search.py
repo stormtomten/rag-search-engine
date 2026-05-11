@@ -1,7 +1,9 @@
 import os
-from typing import List
+from typing import List, Optional
 
 from .keyword_search import InvertedIndex
+from .query_enhancement import enhance_query
+from .reranking import rerank_results
 from .search_utils import (DEFAULT_ALPHA, DEFAULT_K, DEFAULT_SEARCH_LIMIT,
                            HYBRID_RESULT_PADDING, format_search_result,
                            load_movies)
@@ -190,19 +192,36 @@ def rff_combine_search_results(
     return sorted(hybrid_results, key=lambda x: x["score"], reverse=True)
 
 def rff_search_command(
-    query: str, k: int = DEFAULT_K, limit: int = DEFAULT_SEARCH_LIMIT
-) -> dict:
+        query: str, k: int = DEFAULT_K,enhance: Optional[str] = None,rerank: Optional[str] = None, limit: int = DEFAULT_SEARCH_LIMIT
+    ) -> dict:
     movies = load_movies()
     searcher = HybridSearch(movies)
 
     original_query = query
+    enhanced_query = None
+    if enhance:
+        enhanced_query = enhance_query(query=query, method= enhance)
+        query = enhanced_query
 
     search_limit = limit
+
+    if rerank:
+        search_limit = search_limit * 5
+
     results = searcher.rrf_search(query, k, search_limit)
+
+    if rerank:
+        results = rerank_results(query=query, docs=results, method=rerank, limit=limit)
+    
+
 
     return {
         "original_query": original_query,
+        "enhanced_query": enhanced_query,
+        "enhance_method": enhance,
+        "rerank_method": rerank,
         "query": query,
         "k": k,
-        "results": results,
+        "results": results[:limit],
     }
+
