@@ -5,6 +5,7 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from google import genai
+from sentence_transformers import CrossEncoder
 
 from .search_utils import DEFAULT_SEARCH_LIMIT
 
@@ -83,6 +84,23 @@ def batch_rerank(query:str, docs: List[Dict], limit: int) -> List[Dict]:
     rerank = sorted(by_id.values(), key=lambda x: x["batch_rank"], reverse=False)
     return rerank[:limit]
 
+def cross_encode(query:str, docs: List[Dict], limit: int) -> List[Dict]:
+
+    pairs = []
+
+    for doc in docs:
+        pairs.append([query, f"{doc.get('title', '')} - {doc.get('document', '')}"])
+
+    cross_encoder = CrossEncoder("cross-encoder/ms-marco-TinyBERT-L2-v2")
+
+    scores = cross_encoder.predict(pairs)
+
+    for doc, score in zip(docs, scores):
+        doc["cross_encoder_score"] = float(score)
+
+    results = sorted(docs, key=lambda x: x["cross_encoder_score"], reverse=True)
+    return results[:limit]
+
 
 def rerank_results(query: str, docs: List[Dict], method: Optional[str] = None, limit: int = DEFAULT_SEARCH_LIMIT) -> List[Dict]:
     match method:
@@ -91,6 +109,9 @@ def rerank_results(query: str, docs: List[Dict], method: Optional[str] = None, l
 
         case "batch":
             return batch_rerank(query=query, docs=docs, limit=limit)
+
+        case "cross_encoder":
+            return cross_encode(query=query, docs=docs, limit=limit)
 
 
         case _:

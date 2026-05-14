@@ -50,7 +50,7 @@ def main() -> None:
     rff_search.add_argument(
         "--rerank-method",
         type=str,
-        choices=["individual", "batch"],
+        choices=["individual", "batch", "cross_encoder"],
         help="Resuls reranking method",
     )
 
@@ -97,6 +97,8 @@ def main() -> None:
                     print(f"   Re-rank Score: {res.get('individual_score', 0):.3f}")
                 if res.get('batch_rank'):
                     print(f"   Re-rank Score: {res.get('batch_rank', 0):.3f}")
+                if res.get('cross_encoder_score'):
+                    print(f"   Cross Encoder Score: {res.get('cross_encoder_score', 0):.3f}")
                 print(f"   RFF Score: {res.get('score', 0):.3f}")
                 metadata = res.get("metadata", {})
                 if "bm25_rank" in metadata and "semantic_rank" in metadata:

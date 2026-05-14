@@ -17,10 +17,17 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 DATA_PATH = os.path.join(PROJECT_ROOT, "data", "movies.json")
 STOPWORD_PATH = os.path.join(PROJECT_ROOT, "data", "stopwords.txt")
 CACHE_DIR = os.path.join(PROJECT_ROOT, "cache")
+GOLDEN_PATH = os.path.join(PROJECT_ROOT, "data", "golden_dataset.json")
 
 BM25_K1 = 1.5
 BM25_B = 0.75
 
+
+
+def load_golden() -> list[dict]:
+    with open(GOLDEN_PATH, "r") as f:
+        data = json.load(f)
+    return data["test_cases"]
 
 def load_movies() -> list[dict]:
     with open(DATA_PATH, "r") as f:
