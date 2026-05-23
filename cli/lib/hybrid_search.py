@@ -4,9 +4,15 @@ from typing import List, Optional
 from .keyword_search import InvertedIndex
 from .query_enhancement import enhance_query
 from .reranking import rerank_results
-from .search_utils import (DEFAULT_ALPHA, DEFAULT_K, DEFAULT_SEARCH_LIMIT,
-                           HYBRID_RESULT_PADDING, format_search_result,
-                           load_movies)
+from .search_utils import (
+    DEFAULT_ALPHA,
+    DEFAULT_K,
+    DEFAULT_SEARCH_LIMIT,
+    HYBRID_RESULT_PADDING,
+    SearchResult,
+    format_search_result,
+    load_movies,
+)
 from .semantic_search import ChunkedSemanticSearch
 
 
@@ -21,29 +27,42 @@ class HybridSearch:
             self.idx.build()
             self.idx.save()
 
-    def _bm25_search(self, query, limit):
+    def _bm25_search(
+        self, query: str, limit: int = DEFAULT_SEARCH_LIMIT
+    ) -> list[SearchResult]:
         self.idx.load()
         return self.idx.bm25_search(query, limit)
 
-    def weighted_search(self, query, alpha, limit=DEFAULT_SEARCH_LIMIT):
+    def weighted_search(
+        self,
+        query: str,
+        alpha: float = DEFAULT_ALPHA,
+        limit: int = DEFAULT_SEARCH_LIMIT,
+    ) -> list[SearchResult]:
         bm25 = self._bm25_search(query=query, limit=limit * HYBRID_RESULT_PADDING)
-        semantic = self.semantic_search.search_chunks(query=query, limit=limit * HYBRID_RESULT_PADDING)
+        semantic = self.semantic_search.search_chunks(
+            query=query, limit=limit * HYBRID_RESULT_PADDING
+        )
 
-        combined = combine_search_results(bm25_results=bm25, semantic_results=semantic, alpha=alpha)
+        combined = combine_search_results(
+            bm25_results=bm25, semantic_results=semantic, alpha=alpha
+        )
         return combined[:limit]
-
 
     def rrf_search(self, query, k=DEFAULT_K, limit=DEFAULT_SEARCH_LIMIT):
         bm25 = self._bm25_search(query=query, limit=limit * HYBRID_RESULT_PADDING)
-        semantic = self.semantic_search.search_chunks(query=query, limit=limit * HYBRID_RESULT_PADDING)
+        semantic = self.semantic_search.search_chunks(
+            query=query, limit=limit * HYBRID_RESULT_PADDING
+        )
 
-        combined = rff_combine_search_results(bm25_results=bm25, semantic_results=semantic)
+        combined = reciprocal_rank_fusion(
+            bm25_results=bm25, semantic_results=semantic, k=k
+        )
 
         return combined[:limit]
 
 
-
-def normalize_scores(scores: List[float]) ->List[float]:
+def normalize_scores(scores: List[float]) -> List[float]:
     if not scores:
         return []
 
@@ -57,6 +76,7 @@ def normalize_scores(scores: List[float]) ->List[float]:
         results.append((score - min_score) / (max_score - min_score))
 
     return results
+
 
 def normalize_search_results(results: list[dict]) -> list[dict]:
     scores: list[float] = []
@@ -77,7 +97,7 @@ def hybrid_score(
 
 def combine_search_results(
     bm25_results: list[dict], semantic_results: list[dict], alpha: float = DEFAULT_ALPHA
-) -> list[dict]:
+) -> list[SearchResult]:
     bm25_normalized = normalize_search_results(bm25_results)
     semantic_normalized = normalize_search_results(semantic_results)
 
@@ -123,7 +143,6 @@ def combine_search_results(
     return sorted(hybrid_results, key=lambda x: x["score"], reverse=True)
 
 
-
 def weighted_search_command(
     query: str, alpha: float = DEFAULT_ALPHA, limit: int = DEFAULT_SEARCH_LIMIT
 ) -> dict:
@@ -148,7 +167,8 @@ def rff_score(rank: int, k: int):
         return 0
     return 1 / (k + rank)
 
-def rff_combine_search_results(
+
+def reciprocal_rank_fusion(
     bm25_results: list[dict], semantic_results: list[dict], k: int = DEFAULT_K
 ) -> list[dict]:
 
@@ -178,7 +198,9 @@ def rff_combine_search_results(
 
     hybrid_results = []
     for doc_id, data in combined_ranks.items():
-        score_value = rff_score(data["bm25_rank"], k) + rff_score(data["semantic_rank"], k)
+        score_value = rff_score(data["bm25_rank"], k) + rff_score(
+            data["semantic_rank"], k
+        )
         result = format_search_result(
             doc_id=doc_id,
             title=data["title"],
@@ -191,16 +213,21 @@ def rff_combine_search_results(
 
     return sorted(hybrid_results, key=lambda x: x["score"], reverse=True)
 
+
 def rff_search_command(
-        query: str, k: int = DEFAULT_K,enhance: Optional[str] = None,rerank: Optional[str] = None, limit: int = DEFAULT_SEARCH_LIMIT
-    ) -> dict:
+    query: str,
+    k: int = DEFAULT_K,
+    enhance: Optional[str] = None,
+    rerank: Optional[str] = None,
+    limit: int = DEFAULT_SEARCH_LIMIT,
+) -> dict:
     movies = load_movies()
     searcher = HybridSearch(movies)
 
     original_query = query
     enhanced_query = None
     if enhance:
-        enhanced_query = enhance_query(query=query, method= enhance)
+        enhanced_query = enhance_query(query=query, method=enhance)
         query = enhanced_query
 
     search_limit = limit
@@ -212,10 +239,8 @@ def rff_search_command(
 
     if rerank:
         results = rerank_results(query=query, docs=results, method=rerank, limit=limit)
-    
 
-
-    return {
+    formatted_results = {
         "original_query": original_query,
         "enhanced_query": enhanced_query,
         "enhance_method": enhance,
@@ -225,3 +250,4 @@ def rff_search_command(
         "results": results[:limit],
     }
 
+    return formatted_results

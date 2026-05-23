@@ -12,6 +12,7 @@ from .search_utils import (
     BM25_K1,
     CACHE_DIR,
     DEFAULT_SEARCH_LIMIT,
+    SearchResult,
     load_movies,
     load_stopwords,
 )
@@ -97,7 +98,9 @@ class InvertedIndex:
         bm25_idf = self.get_bm25_idf(term)
         return bm25_tf * bm25_idf
 
-    def bm25_search(self, query: str, limit: int = DEFAULT_SEARCH_LIMIT) -> List[dict]:
+    def bm25_search(
+        self, query: str, limit: int = DEFAULT_SEARCH_LIMIT
+    ) -> List[SearchResult]:
         tokens = tokenize_text(query)
         scores: Dict[int, float] = {}
 

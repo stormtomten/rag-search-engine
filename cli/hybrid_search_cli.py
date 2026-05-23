@@ -1,7 +1,11 @@
 import argparse
 
-from lib.hybrid_search import (normalize_scores, rff_search_command,
-                               weighted_search_command)
+from lib.evaluate import llm_evaluation
+from lib.hybrid_search import (
+    normalize_scores,
+    rff_search_command,
+    weighted_search_command,
+)
 from lib.search_utils import DEFAULT_ALPHA, DEFAULT_K, DEFAULT_SEARCH_LIMIT
 
 
@@ -10,7 +14,9 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     normalize = subparsers.add_parser("normalize", help="Normalizes a list of Scores")
-    normalize.add_argument("scores", nargs="*",type=float, help="A list of scores to normalize")
+    normalize.add_argument(
+        "scores", nargs="*", type=float, help="A list of scores to normalize"
+    )
 
     weighted = subparsers.add_parser("weighted-search", help="Weighted Search")
     weighted.add_argument("query", type=str, help="Search string")
@@ -31,7 +37,9 @@ def main() -> None:
 
     rff_search = subparsers.add_parser("rrf-search", help="A rff ranked Hybrid Search")
     rff_search.add_argument("query", type=str, help="Search string")
-    rff_search.add_argument("-k", type=int,nargs="?", default=DEFAULT_K, help="k value weight")
+    rff_search.add_argument(
+        "-k", type=int, nargs="?", default=DEFAULT_K, help="k value weight"
+    )
     rff_search.add_argument(
         "--limit",
         type=int,
@@ -54,6 +62,13 @@ def main() -> None:
         help="Resuls reranking method",
     )
 
+    rff_search.add_argument(
+        "--evaluate",
+        action="store_true",
+        default=False,
+        help="Evaluate results using LLM",
+    )
+
     args = parser.parse_args()
 
     match args.command:
@@ -63,7 +78,9 @@ def main() -> None:
                 print(f"* {score:.4f}")
 
         case "weighted-search":
-            result = weighted_search_command(query=args.query, alpha=args.alpha, limit=args.limit)
+            result = weighted_search_command(
+                query=args.query, alpha=args.alpha, limit=args.limit
+            )
 
             for i, res in enumerate(result["results"], 1):
                 print(f"{i}. {res['title']}")
@@ -77,7 +94,13 @@ def main() -> None:
                 print()
 
         case "rrf-search":
-            result = rff_search_command(query=args.query, k=args.k,enhance=args.enhance,rerank=args.rerank_method, limit=args.limit)
+            result = rff_search_command(
+                query=args.query,
+                k=args.k,
+                enhance=args.enhance,
+                rerank=args.rerank_method,
+                limit=args.limit,
+            )
 
             if result["enhanced_query"]:
                 print(
@@ -85,20 +108,22 @@ def main() -> None:
                 )
             if result["rerank_method"]:
                 print(
-                        f"Re-ranking top {len(result["results"])} results using {result["rerank_method"]} method"
-                        )
+                    f"Re-ranking top {len(result['results'])} results using {result['rerank_method']} method"
+                )
 
             print(
                 f"Reciprocal Rank Fusion Results for '{result['query']}' (k={result['k']}):"
             )
             for i, res in enumerate(result["results"], 1):
                 print(f"{i}. {res['title']}")
-                if res.get('individual_score'):
+                if res.get("individual_score"):
                     print(f"   Re-rank Score: {res.get('individual_score', 0):.3f}")
-                if res.get('batch_rank'):
+                if res.get("batch_rank"):
                     print(f"   Re-rank Score: {res.get('batch_rank', 0):.3f}")
-                if res.get('cross_encoder_score'):
-                    print(f"   Cross Encoder Score: {res.get('cross_encoder_score', 0):.3f}")
+                if res.get("cross_encoder_score"):
+                    print(
+                        f"   Cross Encoder Score: {res.get('cross_encoder_score', 0):.3f}"
+                    )
                 print(f"   RFF Score: {res.get('score', 0):.3f}")
                 metadata = res.get("metadata", {})
                 if "bm25_rank" in metadata and "semantic_rank" in metadata:
@@ -107,6 +132,12 @@ def main() -> None:
                     )
                 print(f"   {res['document'][:100]}...")
                 print()
+            if args.evaluate:
+                eval_results = llm_evaluation(result)
+
+                for i, eval in enumerate(eval_results):
+                    print(f"{i}. {eval['title']}: {eval['llm_relevance']}/3")
+
         case _:
             parser.print_help()
 
